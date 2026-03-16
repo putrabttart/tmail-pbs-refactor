@@ -1,4 +1,4 @@
-import { adminAliases, requireAdmin } from '@/lib/server/runtime';
+import { adminAliases, adminCreateAlias, requireAdmin } from '@/lib/server/runtime';
 import { respond, handleError } from '@/lib/server/respond';
 
 export const runtime = 'nodejs';
@@ -8,6 +8,17 @@ export async function GET(request) {
   try {
     await requireAdmin(request);
     const payload = await adminAliases();
+    return respond(payload);
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+export async function POST(request) {
+  try {
+    await requireAdmin(request);
+    const body = await request.json();
+    const payload = await adminCreateAlias(body || {});
     return respond(payload);
   } catch (err) {
     return handleError(err);
