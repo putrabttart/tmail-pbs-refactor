@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
@@ -93,6 +93,8 @@ export default function AdminPage() {
   const [aliases, setAliases] = useState([]);
   const [domains, setDomains] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [apiKeys, setApiKeys] = useState([]);
+  const [partnerApiEnabled, setPartnerApiEnabled] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('disconnected');
@@ -134,8 +136,15 @@ export default function AdminPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTheme, setActiveTheme] = useState('blue');
   const [themeLoading, setThemeLoading] = useState(false);
-
-  const authHeaders = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+  const [apiKeyName, setApiKeyName] = useState('');
+  const [apiKeyScopes, setApiKeyScopes] = useState('alias:create, messages:read, otp:read');
+  const [apiKeyRateLimit, setApiKeyRateLimit] = useState('60');
+  const [apiKeyAllowedDomains, setApiKeyAllowedDomains] = useState('');
+  const [apiKeyAllowedIps, setApiKeyAllowedIps] = useState('');
+  const [apiKeyExpiresAt, setApiKeyExpiresAt] = useState('');
+  const [issuedApiKeySecret, setIssuedApiKeySecret] = useState('');
+  const [apiKeyQuery, setApiKeyQuery] = useState('');
+  const [apiKeyPage, setApiKeyPage] = useState(1);
 
   useEffect(() => {
     const ensureSession = async () => {
@@ -151,7 +160,8 @@ export default function AdminPage() {
     ensureSession();
   }, [router]);
 
-  async function fetchWithAdmin(path, options = {}) {
+  const fetchWithAdmin = useCallback(async (path, options = {}) => {
+    const authHeaders = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
     const headers = { ...(options.headers || {}), ...authHeaders };
     if (options.body) headers['Content-Type'] = 'application/json';
     const res = await fetch(path, { cache: 'no-store', ...options, headers });
@@ -160,9 +170,9 @@ export default function AdminPage() {
       throw new Error(body.error || `Request failed with ${res.status}`);
     }
     return res.json();
-  }
+  }, [accessToken]);
 
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     if (!sessionChecked || !accessToken) return;
     setLoading(true);
     try {
@@ -170,15 +180,20 @@ export default function AdminPage() {
         fetchWithAdmin('/api/admin/stats'),
         fetchWithAdmin('/api/admin/aliases'),
         fetchWithAdmin('/api/admin/domains'),
-        fetchWithAdmin('/api/admin/logs?limit=5000')
+        fetchWithAdmin('/api/admin/logs?limit=5000'),
+        fetchWithAdmin('/api/admin/keys')
       ]);
 
-      const [statsRes, aliasesRes, domainsRes, logsRes] = results;
+      const [statsRes, aliasesRes, domainsRes, logsRes, keysRes] = results;
 
       if (statsRes.status === 'fulfilled') setStats(statsRes.value);
       if (aliasesRes.status === 'fulfilled') setAliases(aliasesRes.value.aliases || []);
       if (domainsRes.status === 'fulfilled') setDomains(domainsRes.value.domains || []);
       if (logsRes.status === 'fulfilled') setLogs(logsRes.value.logs || []);
+      if (keysRes.status === 'fulfilled') {
+        setApiKeys(keysRes.value.keys || []);
+        setPartnerApiEnabled(Boolean(keysRes.value.partnerApiEnabled));
+      }
 
       const anyError = results.some((r) => r.status === 'rejected');
       setStatus('connected');
@@ -190,11 +205,11 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [accessToken, fetchWithAdmin, sessionChecked]);
 
   useEffect(() => {
     if (accessToken && sessionChecked) loadAll();
-  }, [accessToken, sessionChecked]);
+  }, [accessToken, loadAll, sessionChecked]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -219,11 +234,15 @@ export default function AdminPage() {
   }, [domainQuery, domainFilterStatus]);
 
   useEffect(() => {
+    setApiKeyPage(1);
+  }, [apiKeyQuery]);
+
+  useEffect(() => {
     if (!accessToken) return;
     fetchWithAdmin('/api/admin/theme')
       .then((d) => { if (d?.theme) setActiveTheme(d.theme); })
       .catch(() => {});
-  }, [accessToken]);
+  }, [accessToken, fetchWithAdmin]);
 
   useEffect(() => {
     if (inboxAlias) return;
@@ -403,6 +422,35 @@ export default function AdminPage() {
 
   const domainPagination = useMemo(() => paginateRows(domainRows, domainPage, 15), [domainRows, domainPage]);
 
+  const apiKeyRows = useMemo(() => {
+    const q = apiKeyQuery.trim().toLowerCase();
+    let rows = [...apiKeys];
+    if (q) {
+      rows = rows.filter((row) => {
+        const haystack = [
+          row.name || '',
+          row.id || '',
+          row.keyPrefix || '',
+          ...(row.scopes || [])
+        ]
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+
+    rows.sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
+    return rows;
+  }, [apiKeys, apiKeyQuery]);
+
+  const apiKeyPagination = useMemo(
+    () => paginateRows(apiKeyRows, apiKeyPage, 10),
+    [apiKeyRows, apiKeyPage]
+  );
+
   const overviewLatestRows = useMemo(() => {
     const rows = [...logs];
     rows.sort((a, b) => new Date(b.lastSeenAt || 0) - new Date(a.lastSeenAt || 0));
@@ -487,6 +535,85 @@ export default function AdminPage() {
       setToast('Token OAuth berhasil dicabut');
     } catch (err) {
       setToast(localizeErrorMessage(err?.message) || 'Gagal mencabut token OAuth');
+    }
+  }
+
+  function resetApiKeyForm() {
+    setApiKeyName('');
+    setApiKeyScopes('alias:create, messages:read, otp:read');
+    setApiKeyRateLimit('60');
+    setApiKeyAllowedDomains('');
+    setApiKeyAllowedIps('');
+    setApiKeyExpiresAt('');
+  }
+
+  async function copyIssuedApiKey() {
+    if (!issuedApiKeySecret) return;
+    try {
+      await navigator.clipboard.writeText(issuedApiKeySecret);
+      setToast('API key berhasil disalin');
+    } catch {
+      setToast('Gagal menyalin API key');
+    }
+  }
+
+  async function createApiKey() {
+    const name = apiKeyName.trim();
+    if (!name) {
+      setToast('Nama API key wajib diisi');
+      return;
+    }
+
+    try {
+      const payload = {
+        name,
+        scopes: splitFilterInput(apiKeyScopes),
+        rateLimitPerMin: parseInt(apiKeyRateLimit || '60', 10) || 60,
+        allowedDomains: splitFilterInput(apiKeyAllowedDomains),
+        allowedIps: splitFilterInput(apiKeyAllowedIps),
+        expiresAt: apiKeyExpiresAt || null
+      };
+
+      const data = await fetchWithAdmin('/api/admin/keys', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      setIssuedApiKeySecret(data?.secret || '');
+      resetApiKeyForm();
+      await loadAll();
+      setToast('API key baru berhasil dibuat');
+    } catch (err) {
+      setToast(localizeErrorMessage(err?.message) || 'Gagal membuat API key');
+    }
+  }
+
+  async function revokeApiKeyRecord(row) {
+    if (!row?.id) return;
+    if (!window.confirm(`Cabut API key ${row.name}?`)) return;
+    try {
+      await fetchWithAdmin(`/api/admin/keys/${encodeURIComponent(row.id)}`, {
+        method: 'DELETE'
+      });
+      await loadAll();
+      setToast('API key berhasil dicabut');
+    } catch (err) {
+      setToast(localizeErrorMessage(err?.message) || 'Gagal mencabut API key');
+    }
+  }
+
+  async function rotateApiKeyRecord(row) {
+    if (!row?.id) return;
+    if (!window.confirm(`Rotate API key ${row.name}? Key lama akan langsung dicabut.`)) return;
+    try {
+      const data = await fetchWithAdmin(`/api/admin/keys/${encodeURIComponent(row.id)}/rotate`, {
+        method: 'POST'
+      });
+      setIssuedApiKeySecret(data?.secret || '');
+      await loadAll();
+      setToast('API key berhasil di-rotate');
+    } catch (err) {
+      setToast(localizeErrorMessage(err?.message) || 'Gagal rotate API key');
     }
   }
 
@@ -652,6 +779,7 @@ export default function AdminPage() {
     { key: 'inbox', icon: 'bi-inboxes', label: 'Kotak Masuk' },
     { key: 'logs', icon: 'bi-envelope-paper', label: 'Log Email' },
     { key: 'domains', icon: 'bi-globe2', label: 'Domain' },
+    { key: 'api-keys', icon: 'bi-key', label: 'API Key' },
     { key: 'security', icon: 'bi-shield-lock', label: 'Keamanan' },
     { key: 'tampilan', icon: 'bi-palette', label: 'Tampilan' },
   ];
@@ -670,7 +798,7 @@ export default function AdminPage() {
         '--admin-shadow': adminTheme.shadow
       }}
     >
-      <style>{`
+      <style suppressHydrationWarning>{`
         .admin-shell { background: var(--admin-page-bg); color: var(--admin-text); }
         .admin-sidebar {
           background: var(--admin-card-bg);
@@ -1651,6 +1779,209 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {section === 'api-keys' && (
+          <div className="row g-4">
+            <div className="col-12 col-xl-5">
+              <div className="admin-panel h-100">
+                <h5 className="mb-1">Buat API Key Partner</h5>
+                <p className="text-muted small mb-3">
+                  Key digunakan pihak ketiga untuk generate alias email, baca inbox, dan ambil OTP.
+                </p>
+
+                <div className={`alert ${partnerApiEnabled ? 'alert-success' : 'alert-warning'} py-2 small`}>
+                  <strong>Status Partner API:</strong> {partnerApiEnabled ? 'Aktif' : 'Nonaktif'}
+                </div>
+
+                {issuedApiKeySecret && (
+                  <div className="alert alert-info">
+                    <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+                      <strong>API Key Baru</strong>
+                      <button className="btn btn-sm btn-outline-primary" onClick={copyIssuedApiKey}>
+                        <i className="bi bi-clipboard me-1" /> Salin
+                      </button>
+                    </div>
+                    <code className="d-block text-break">{issuedApiKeySecret}</code>
+                    <small className="text-muted">Simpan key ini sekarang. Nilainya tidak akan ditampilkan ulang.</small>
+                  </div>
+                )}
+
+                <div className="row g-2">
+                  <div className="col-12">
+                    <label className="form-label small mb-1">Nama Key</label>
+                    <input
+                      className="form-control form-control-sm"
+                      placeholder="Partner A - Production"
+                      value={apiKeyName}
+                      onChange={(e) => setApiKeyName(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="col-12">
+                    <label className="form-label small mb-1">Scopes (pisahkan koma)</label>
+                    <input
+                      className="form-control form-control-sm"
+                      placeholder="alias:create, messages:read, otp:read"
+                      value={apiKeyScopes}
+                      onChange={(e) => setApiKeyScopes(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="col-6">
+                    <label className="form-label small mb-1">Rate Limit / Menit</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="form-control form-control-sm"
+                      value={apiKeyRateLimit}
+                      onChange={(e) => setApiKeyRateLimit(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="col-6">
+                    <label className="form-label small mb-1">Expires At (opsional)</label>
+                    <input
+                      type="datetime-local"
+                      className="form-control form-control-sm"
+                      value={apiKeyExpiresAt}
+                      onChange={(e) => setApiKeyExpiresAt(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="col-12">
+                    <label className="form-label small mb-1">Allowed Domains (opsional)</label>
+                    <input
+                      className="form-control form-control-sm"
+                      placeholder="example.com, example.org"
+                      value={apiKeyAllowedDomains}
+                      onChange={(e) => setApiKeyAllowedDomains(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="col-12">
+                    <label className="form-label small mb-1">Allowed IPs (opsional)</label>
+                    <input
+                      className="form-control form-control-sm"
+                      placeholder="203.0.113.10, 198.51.100.7"
+                      value={apiKeyAllowedIps}
+                      onChange={(e) => setApiKeyAllowedIps(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="d-flex gap-2 mt-3">
+                  <button className="btn btn-sm btn-primary" onClick={createApiKey}>
+                    <i className="bi bi-key me-1" /> Buat Key
+                  </button>
+                  <button className="btn btn-sm btn-outline-secondary" onClick={resetApiKeyForm}>
+                    Reset
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-12 col-xl-7">
+              <div className="admin-panel h-100">
+                <div className="admin-panel-header flex-wrap gap-2">
+                  <h5 className="mb-0">Daftar API Key</h5>
+                  <input
+                    className="form-control form-control-sm admin-toolbar-field"
+                    placeholder="Cari nama key / scope / prefix"
+                    value={apiKeyQuery}
+                    onChange={(e) => setApiKeyQuery(e.target.value)}
+                  />
+                </div>
+
+                <div className="admin-pagination-bar">
+                  <small className="text-muted">{apiKeyPagination.rows.length} / {apiKeyPagination.total} key</small>
+                  <div className="admin-page-controls">
+                    <button
+                      className="admin-page-btn"
+                      onClick={() => setApiKeyPage((p) => Math.max(1, p - 1))}
+                      disabled={apiKeyPagination.page <= 1}
+                    >
+                      <i className="bi bi-chevron-left" />
+                    </button>
+                    <span className="admin-page-info">{apiKeyPagination.page} / {apiKeyPagination.totalPages}</span>
+                    <button
+                      className="admin-page-btn"
+                      onClick={() => setApiKeyPage((p) => Math.min(apiKeyPagination.totalPages, p + 1))}
+                      disabled={apiKeyPagination.page >= apiKeyPagination.totalPages}
+                    >
+                      <i className="bi bi-chevron-right" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="table-responsive">
+                  <table className="table table-hover align-middle mb-0 admin-table">
+                    <thead>
+                      <tr>
+                        <th>Nama</th>
+                        <th>Prefix</th>
+                        <th>Scopes</th>
+                        <th>Status</th>
+                        <th>Dibuat</th>
+                        <th className="text-end">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {apiKeyRows.length === 0 && (
+                        <tr>
+                          <td colSpan={6}>
+                            <div className="admin-empty">
+                              <i className="bi bi-key" />
+                              <p>Belum ada API key partner.</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+
+                      {apiKeyPagination.rows.map((row) => (
+                        <tr key={row.id}>
+                          <td>
+                            <div className="fw-600 text-break">{row.name || '-'}</div>
+                            <small className="text-muted text-break">{row.id}</small>
+                          </td>
+                          <td><code>{row.keyPrefix || '-'}</code></td>
+                          <td>
+                            <small className="text-break">{(row.scopes || []).join(', ') || '-'}</small>
+                          </td>
+                          <td>
+                            <span className={`badge ${row.active ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary'}`}>
+                              {row.active ? 'Aktif' : 'Nonaktif'}
+                            </span>
+                          </td>
+                          <td className="text-nowrap">{formatCompactDate(row.createdAt)}</td>
+                          <td>
+                            <div className="admin-row-actions justify-content-end">
+                              <button
+                                className="btn btn-sm btn-outline-primary"
+                                onClick={() => rotateApiKeyRecord(row)}
+                                disabled={!row.active}
+                                title="Rotate key"
+                              >
+                                Rotate
+                              </button>
+                              <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => revokeApiKeyRecord(row)}
+                                disabled={!row.active}
+                                title="Revoke key"
+                              >
+                                Revoke
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         )}

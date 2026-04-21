@@ -5,6 +5,7 @@ Aplikasi temp mail berbasis Next.js (App Router) dengan UI publik dan dashboard 
 ## Fitur Utama
 - Alias email sementara, inbox menampilkan pesan terbaru (dibatasi 3 pada UI publik).
 - Dashboard admin: statistik alias/domain/log, tambah/hapus domain dan alias, clear logs, token revoke.
+- Partner API Key v1: pihak ketiga bisa generate alias, baca inbox alias miliknya, dan ambil OTP.
 - Keamanan: Supabase Auth (email/password) untuk admin + allowlist email (`ADMIN_EMAILS`), validasi input (Zod), optional token encryption AES-128, audit log admin actions.
 - Observabilitas: health checks (`/health`, `/health/token`), structured logging, cache metrics.
 - Deploy-ready: Next.js 14, API routes, migrasi Supabase untuk storage.
@@ -34,6 +35,12 @@ GOOGLE_CLIENT_SECRET=<client-secret-google>
 GOOGLE_REDIRECT_URI=http://localhost:3000/oauth2callback
 MAX_MESSAGES=20
 
+# Partner API Key
+PARTNER_API_ENABLED=true
+PARTNER_KEY_PEPPER=<opsional-secret-pepper-untuk-hash-api-key>
+PARTNER_DEFAULT_RATE_LIMIT=60
+PARTNER_MAX_WAIT_SECONDS=20
+
 TOKEN_ENCRYPTION_KEY=<opsional-32-hex-untuk-AES-128>
 TOKEN_PATH=
 
@@ -49,6 +56,9 @@ SUPABASE_TABLE_ALIASES=app_aliases
 SUPABASE_TABLE_DOMAINS=app_domains
 SUPABASE_TABLE_LOGS=app_logs
 SUPABASE_TABLE_AUDIT=app_audit
+SUPABASE_TABLE_API_KEYS=app_api_keys
+SUPABASE_TABLE_PARTNER_ALIASES=app_partner_aliases
+SUPABASE_TABLE_PARTNER_ACCESS_LOGS=app_partner_access_logs
 ```
 
 ## Instalasi Lokal (Ringkas)
@@ -122,8 +132,34 @@ TXT (DMARC, opsional disarankan):
 
 ## Endpoint Utama
 - Publik: `/api/messages?alias=...`, `/api/messages/:id`, `/api/aliases`.
-- Admin: `/api/admin/stats`, `/api/admin/aliases`, `/api/admin/domains`, `/api/admin/logs`, `/auth/revoke`.
+- Admin: `/api/admin/stats`, `/api/admin/aliases`, `/api/admin/domains`, `/api/admin/logs`, `/api/admin/keys`, `/auth/revoke`.
+- Partner v1: `/api/v1/partner/health`, `/api/v1/partner/aliases`, `/api/v1/partner/messages`, `/api/v1/partner/messages/:id`, `/api/v1/partner/otp`.
 - Health: `/health`, `/health/token`.
+
+## Dokumentasi API Partner Publik
+Halaman dokumentasi terpisah dan bisa diakses publik di:
+
+- `/docs/api-partner`
+
+Halaman ini memuat cara pakai API, header autentikasi, scope, alur integrasi, dan contoh request.
+
+## Partner API Key (Third-party)
+Partner API memakai header:
+
+```http
+x-api-key: tpk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Flow umum:
+1. Admin buat API key di dashboard admin (menu API Key).
+2. Third-party panggil `POST /api/v1/partner/aliases` untuk generate alias.
+3. Third-party panggil `GET /api/v1/partner/messages?alias=...` untuk inbox alias tersebut.
+4. Third-party panggil `GET /api/v1/partner/otp?alias=...&waitSeconds=20` untuk ambil OTP terbaru.
+
+Catatan:
+- API key hanya ditampilkan sekali saat dibuat/rotate.
+- Isolasi alias per API key: key lain tidak bisa membaca alias yang bukan miliknya.
+- Scope API key tersedia: `alias:create`, `messages:read`, `otp:read`.
 
 ## Deploy ke Vercel
 1. Set semua ENV di Vercel (Production).

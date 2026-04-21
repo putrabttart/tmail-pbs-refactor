@@ -9,6 +9,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const error = searchParams.get('error');
+  const state = searchParams.get('state');
 
   try {
     // Check if user denied access
@@ -21,7 +22,7 @@ export async function GET(request) {
       return NextResponse.redirect(new URL('/?error=no_code', request.url));
     }
 
-    await exchangeCode(code, null);
+    await exchangeCode(code, state);
     
     // Redirect to admin page after successful auth
     return NextResponse.redirect(new URL('/admin?auth=success', request.url));

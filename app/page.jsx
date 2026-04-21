@@ -793,6 +793,14 @@ export default function HomePage() {
         fontSize: '0.85rem'
       }}>
         Copyright 2026 |{' '}
+        <Link
+          href="/docs/api-partner"
+          className="footer-link"
+          style={{ marginRight: '0.65rem' }}
+        >
+          API Partner Docs
+        </Link>
+        {' | '}
         <a
           href="https://t.me/aryadwinata543"
           target="_blank"
