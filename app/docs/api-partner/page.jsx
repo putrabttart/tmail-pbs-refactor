@@ -320,6 +320,96 @@ export default function PartnerApiDocsPage() {
                   <li>Jika email berisi OTP, partner memanggil endpoint otp dan menunggu sampai kode ditemukan.</li>
                 </ol>
               </div>
+
+              <div className="partner-docs-section">
+                <div className="partner-docs-kicker">5. Contoh Integrasi</div>
+                <h2 className="h4 mb-3">Contoh di beberapa bahasa umum</h2>
+                <div className="row g-3">
+                  <div className="col-12 col-xl-6">
+                    <div className="p-3 rounded-4 border bg-light h-100">
+                      <div className="fw-bold mb-2">JavaScript / Node.js</div>
+                      <pre className="partner-docs-code mb-0" style={{ fontSize: '0.8rem' }}><code>{`const res = await fetch('https://your-domain.com/api/v1/partner/aliases', {
+  method: 'POST',
+  headers: {
+    'x-api-key': process.env.PBS_API_KEY,
+    'content-type': 'application/json'
+  },
+  body: JSON.stringify({
+    localPart: 'demo123',
+    ttlMinutes: 60,
+    reference: 'order-001'
+  })
+});
+
+const data = await res.json();`}</code></pre>
+                    </div>
+                  </div>
+                  <div className="col-12 col-xl-6">
+                    <div className="p-3 rounded-4 border bg-light h-100">
+                      <div className="fw-bold mb-2">Python</div>
+                      <pre className="partner-docs-code mb-0" style={{ fontSize: '0.8rem' }}><code>{`import requests
+
+res = requests.post(
+    'https://your-domain.com/api/v1/partner/aliases',
+    headers={'x-api-key': 'tpk_xxx'},
+    json={'localPart': 'demo123', 'ttlMinutes': 60}
+)
+data = res.json()`}</code></pre>
+                    </div>
+                  </div>
+                  <div className="col-12 col-xl-6">
+                    <div className="p-3 rounded-4 border bg-light h-100">
+                      <div className="fw-bold mb-2">PHP</div>
+                      <pre className="partner-docs-code mb-0" style={{ fontSize: '0.8rem' }}><code>{`$client = new \GuzzleHttp\Client();
+$res = $client->post('https://your-domain.com/api/v1/partner/aliases', [
+  'headers' => ['x-api-key' => 'tpk_xxx'],
+  'json' => ['localPart' => 'demo123', 'ttlMinutes' => 60],
+]);
+$data = json_decode((string) $res->getBody(), true);`}</code></pre>
+                    </div>
+                  </div>
+                  <div className="col-12 col-xl-6">
+                    <div className="p-3 rounded-4 border bg-light h-100">
+                      <div className="fw-bold mb-2">Go</div>
+                      <pre className="partner-docs-code mb-0" style={{ fontSize: '0.8rem' }}><code>{`req, _ := http.NewRequest(http.MethodPost, "https://your-domain.com/api/v1/partner/aliases", strings.NewReader(body))
+req.Header.Set("x-api-key", os.Getenv("PBS_API_KEY"))
+req.Header.Set("content-type", "application/json")
+
+resp, _ := http.DefaultClient.Do(req)
+defer resp.Body.Close()`}</code></pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="partner-docs-section">
+                <div className="partner-docs-kicker">6. Benar vs Salah</div>
+                <h2 className="h4 mb-3">Cara pakai yang disarankan</h2>
+                <div className="row g-3">
+                  <div className="col-12 col-lg-6">
+                    <div className="p-3 rounded-4 border border-success bg-success-subtle h-100">
+                      <div className="fw-bold text-success mb-2">Benar</div>
+                      <ul className="mb-0 ps-3 small">
+                        <li>Kirim hanya <code>localPart</code> saat domain tidak perlu dipaksa.</li>
+                        <li>Biarkan server memilih domain aktif jika key tidak dibatasi domain.</li>
+                        <li>Cek endpoint <code>/health</code> saat integrasi baru.</li>
+                        <li>Gunakan alias yang sudah dikembalikan oleh server untuk request berikutnya.</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="col-12 col-lg-6">
+                    <div className="p-3 rounded-4 border border-danger bg-danger-subtle h-100">
+                      <div className="fw-bold text-danger mb-2">Salah</div>
+                      <ul className="mb-0 ps-3 small">
+                        <li>Mengirim <code>address</code> penuh dengan domain yang tidak aktif.</li>
+                        <li>Mengubah domain sendiri tanpa memastikan domain itu aktif di PBS.</li>
+                        <li>Menganggap semua domain bebas jika API key dibatasi domain.</li>
+                        <li>Menebak format OTP tanpa membaca response dari server.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="col-12 col-lg-4">
@@ -330,11 +420,13 @@ export default function PartnerApiDocsPage() {
   -H "x-api-key: tpk_xxx" \
   -H "content-type: application/json" \
   -d '{
-    "domain": "pbsmailer.tech",
     "localPart": "demo123",
     "ttlMinutes": 60,
     "reference": "partner-order-001"
   }'`}</code></pre>
+                <p className="small text-secondary mb-0">
+                  Kalau domain tidak perlu dipaksa, jangan kirim field <code>domain</code>. Server akan memilih domain aktif yang cocok untuk API key.
+                </p>
               </div>
 
               <div className="partner-docs-section">
