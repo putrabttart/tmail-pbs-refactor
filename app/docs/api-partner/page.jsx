@@ -265,6 +265,7 @@ export default function PartnerApiDocsPage() {
                   <li>Jika key kadaluarsa atau dicabut, semua request akan ditolak.</li>
                   <li>Beberapa key bisa dibatasi berdasarkan domain, IP, scope, dan rate limit.</li>
                   <li>Jika field <code>domain</code> tidak dikirim saat create alias, server akan memilih domain aktif yang diizinkan oleh API key.</li>
+                  <li>Untuk integrasi API key, gunakan endpoint <code>/api/v1/partner/*</code>, bukan endpoint publik lama <code>/api/aliases</code>.</li>
                 </ul>
               </div>
 
