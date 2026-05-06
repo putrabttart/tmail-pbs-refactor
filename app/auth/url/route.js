@@ -1,12 +1,13 @@
-import { generateAuthUrl } from '@/lib/server/runtime';
+import { generateAuthUrl, resolveTenantId } from '@/lib/server/runtime';
 import { respond, handleError } from '@/lib/server/respond';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request) {
   try {
-    const payload = await generateAuthUrl();
+    const tenantId = resolveTenantId(request);
+    const payload = await generateAuthUrl(tenantId, request.url);
     return respond(payload);
   } catch (err) {
     return handleError(err);

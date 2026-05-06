@@ -1,4 +1,4 @@
-// File: D:\WEB\tmail-pbs\app\layout.js
+// File: D:\WEB\tmail-pbs-refactor\app\layout.js
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

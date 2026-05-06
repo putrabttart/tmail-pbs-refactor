@@ -1,4 +1,4 @@
-import { listMessages } from '@/lib/server/runtime';
+import { listMessages, resolveTenantId } from '@/lib/server/runtime';
 import { respond, handleError } from '@/lib/server/respond';
 
 export const runtime = 'nodejs';
@@ -6,9 +6,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   try {
+    const tenantId = resolveTenantId(request);
     const { searchParams } = new URL(request.url);
     const alias = searchParams.get('alias') || '';
-    const payload = await listMessages(alias);
+    const payload = await listMessages(alias, { tenantId });
     return respond(payload);
   } catch (err) {
     return handleError(err);

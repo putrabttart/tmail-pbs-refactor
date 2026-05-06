@@ -1,12 +1,13 @@
-import { getUiTheme } from '@/lib/server/runtime';
+import { getUiTheme, resolveTenantId } from '@/lib/server/runtime';
 import { respond, handleError } from '@/lib/server/respond';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request) {
   try {
-    const theme = await getUiTheme();
+    const tenantId = resolveTenantId(request);
+    const theme = await getUiTheme(tenantId);
     return respond({ theme });
   } catch (err) {
     return handleError(err);

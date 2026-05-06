@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { exchangeCode } from '@/lib/server/runtime';
+import { exchangeCode, resolveTenantId } from '@/lib/server/runtime';
 import { handleError } from '@/lib/server/respond';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
+  const tenantId = resolveTenantId(request);
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const error = searchParams.get('error');
@@ -22,7 +23,7 @@ export async function GET(request) {
       return NextResponse.redirect(new URL('/?error=no_code', request.url));
     }
 
-    await exchangeCode(code, state);
+    await exchangeCode(code, state, tenantId, request.url);
     
     // Redirect to admin page after successful auth
     return NextResponse.redirect(new URL('/admin?auth=success', request.url));

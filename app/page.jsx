@@ -1,10 +1,20 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 
 const DEFAULT_DOMAIN = '';
 const AUTO_REFRESH_MS = 10000;
+
+// ─── Debounce Hook ─────────────────────────────────────────────────────────────
+function useDebounce(value, delay = 300) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 // â”€â”€â”€ Themes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const THEMES = {
@@ -345,13 +355,21 @@ export default function HomePage() {
     }
   }
 
+  // Debounce address to avoid excessive API calls while typing
+  const debouncedAddress = useDebounce(address, 500);
+  const prevAddressRef = useRef('');
+
   useEffect(() => {
-    if (!address || !address.includes('@')) return undefined;
-    registerAlias(address);
-    refreshInbox(address);
-    const timer = setInterval(() => refreshInbox(address, { silent: true }), AUTO_REFRESH_MS);
+    if (!debouncedAddress || !debouncedAddress.includes('@')) return undefined;
+    // Only register + refresh if address actually changed
+    if (prevAddressRef.current === debouncedAddress) return undefined;
+    prevAddressRef.current = debouncedAddress;
+
+    registerAlias(debouncedAddress);
+    refreshInbox(debouncedAddress);
+    const timer = setInterval(() => refreshInbox(debouncedAddress, { silent: true }), AUTO_REFRESH_MS);
     return () => clearInterval(timer);
-  }, [address]);
+  }, [debouncedAddress]);
 
   useEffect(() => {
     async function loadDomains() {

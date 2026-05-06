@@ -1,4 +1,4 @@
-import { getMessageDetail, requireAdmin } from '@/lib/server/runtime';
+import { getMessageDetail, requireAdmin, resolveTenantId } from '@/lib/server/runtime';
 import { respond, handleError } from '@/lib/server/respond';
 
 export const runtime = 'nodejs';
@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request, { params }) {
   try {
-    await requireAdmin(request);
+    const tenantId = resolveTenantId(request);
+    await requireAdmin(request, tenantId);
     const payload = await getMessageDetail(params.id);
     return respond(payload);
   } catch (err) {

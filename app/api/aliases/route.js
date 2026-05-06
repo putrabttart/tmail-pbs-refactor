@@ -1,4 +1,4 @@
-import { registerAlias } from '@/lib/server/runtime';
+import { registerAlias, resolveTenantId } from '@/lib/server/runtime';
 import { respond, handleError } from '@/lib/server/respond';
 
 export const runtime = 'nodejs';
@@ -6,8 +6,9 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
+    const tenantId = resolveTenantId(request);
     const body = await request.json();
-    const payload = await registerAlias(body.address || '');
+    const payload = await registerAlias(body.address || '', { tenantId });
     return respond(payload);
   } catch (err) {
     return handleError(err);
